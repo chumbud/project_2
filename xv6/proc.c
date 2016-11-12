@@ -57,6 +57,8 @@ allocproc(void)
 		return 0;
 
 		found:
+		p->stack = (void*)0;
+		p->retval = (void*)0;
 		p->state = EMBRYO;
 		p->pid = nextpid++;
 		p->isthread = 0;
@@ -484,39 +486,31 @@ int clone(void *(*func) (void *), void* arg, void* stack) {
 	acquire(&ptable.lock);
 
   // Allocate process.
-	if((np = allocproc()) == 0){
+	if((np = allocproc()) == 0) {
 		release(&ptable.lock);
 		return -1;
 	}
-
+	/*assign the parents pagemap, dont copyvm*/
   // Copy process state from p.
-	if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
-		kfree(np->kstack);
-		np->kstack = 0;
-		np->state = UNUSED;
-		release(&ptable.lock);
-		return -1;
-	}
 
 	np->sz = proc->sz;
 	np->parent = proc;
+	np->pgdir = np->parent->pgdir;
 	*np->tf = *proc->tf;
   /* project 2 */
-	np->kstack = stack;
+	/*!!!!!!!!have a user stack in the proc struct field that (also minus -4?) that you assign the stack to */
+	np->stack = stack;
 	np->tf->eip = (int)func;
 	np->tf->esp = (int)stack + 4096;
   /* project 2 */
-
   // Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
-
   /*
   for(i = 0; i < NOFILE; i++)
   if(proc->ofile[i])
   np->ofile[i] = filedup(proc->ofile[i]);
   */
 	np->cwd = idup(proc->cwd);
-
 	safestrcpy(np->name, proc->name, sizeof(proc->name));
 
 	pid = np->pid;
@@ -531,7 +525,7 @@ int clone(void *(*func) (void *), void* arg, void* stack) {
 int join(int pid, void **stack, void **retval) {
 	struct proc *p;
 	int havekids, pid_proc;
-
+	/*target the pid*/
 	acquire(&ptable.lock);
 	for(;;){
     // Scan through table looking for zombie children.
@@ -550,7 +544,7 @@ int join(int pid, void **stack, void **retval) {
 				p->name[0] = 0;
 				p->killed = 0;
 				p->state = UNUSED;
-				*stack = p->kstack;
+				*stack = p->stack;
 				*retval = (void*)pid_proc;
 				release(&ptable.lock);
 				return pid;
@@ -564,13 +558,12 @@ int join(int pid, void **stack, void **retval) {
 			return -1;
 		}
 
-    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(proc, &ptable.lock);  //DOC: wait-sleep
-}
-
-*retval = 0;
-texit(retval);
-return 0;
+    	// Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    	sleep(proc, &ptable.lock);  //DOC: wait-sleep
+	}
+	release(&ptable.lock);
+	texit(retval);
+	return 0;
 }
 
 void texit(void *retval) {
@@ -612,10 +605,15 @@ void texit(void *retval) {
 		}
 	}
 
+	p->retval = retval;
+	release(&ptable.lock);
   // Jump into the scheduler, never to return.
 	proc->state = ZOMBIE;
 	sched();
 	panic("zombie exit");
+	/*!!!!!make a field in proc for retval pass through there*/
+	/*!!!!!wait for it to become a zombie, join cant become a proc until the exit, so return reteval after wait in join to become a zombie(?)*/
+}
 
   /* 
   join on a particular thread with texit, and dont freevm, check if isthread, 
@@ -623,34 +621,27 @@ void texit(void *retval) {
   change proc table to have a return value field for texit to pass to
   clone is wait but sharing the memory
   */
-}
+
 
 int sem_initialize(void) {
 
 	int i;
 
 	for(i = 0; i < 32; i++) {
-		acquire(&semaphore_table[i].lock);
 		semaphore_table[i].active = 0;
 		semaphore_table[i].value = 0;
-
 		initlock(&semaphore_table[i].lock, "sem_lock");
-		release(&semaphore_table[i].lock);
-
 	}
 
 	return 0;
 }
 
 int sem_init(int semId, int n) {
-	acquire(&semaphore_table[semId].lock);
 
 	if(semaphore_table[semId].active != 1) {
 		semaphore_table[semId].active = 1;
 		semaphore_table[semId].value = n;
-		release(&semaphore_table[semId].lock);
 	} else {
-		release(&semaphore_table[semId].lock);
 		return -1;
 	}
 
@@ -659,11 +650,7 @@ int sem_init(int semId, int n) {
 
 int sem_destroy(int semId) {
 
-	acquire(&semaphore_table[semId].lock);
-
 	semaphore_table[semId].active = 0;
-
-	release(&semaphore_table[semId].lock);
 
 	return 0;
 }
@@ -672,16 +659,14 @@ int sem_wait(int semId) {
 
 	acquire(&semaphore_table[semId].lock);
 
-	if(semaphore_table[semId].value > 0)
-		semaphore_table[semId].value--;
-	else {
-		while(semaphore_table[semId].value < 0) {
-			sleep(&semaphore_table[semId], &semaphore_table[semId].lock);
-		}
-		semaphore_table[semId].value--;
+
+	while(&semaphore_table[semId].value == 0) {
+		sleep(&semaphore_table[semId], &semaphore_table[semId].lock);
 	}
+	semaphore_table[semId].value--;
 
 	release(&semaphore_table[semId].lock);
+	
 	return 0;
 }
 

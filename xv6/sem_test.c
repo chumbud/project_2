@@ -67,11 +67,10 @@ void child(void)
 
 	for (i=0; i<TARGET_COUNT_PER_CHILD; i++) {
 		sem_wait(SEMAPHORE_NUM);
-		
+				
 		counter = counter_get("counter");
 		counter++;
 		counter_set("counter", counter);
-
 		sem_signal(SEMAPHORE_NUM);
 	}
 
