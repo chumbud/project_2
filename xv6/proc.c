@@ -659,8 +659,7 @@ int sem_wait(int semId) {
 
 	acquire(&semaphore_table[semId].lock);
 
-
-	while(&semaphore_table[semId].value == 0) {
+	while(semaphore_table[semId].value == 0) {
 		sleep(&semaphore_table[semId], &semaphore_table[semId].lock);
 	}
 	semaphore_table[semId].value--;
