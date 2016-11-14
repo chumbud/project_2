@@ -56,7 +56,7 @@ allocproc(void)
 		release(&ptable.lock);
 		return 0;
 
-		found:
+	found:
 		p->stack = (void*)0;
 		p->retval = (void*)0;
 		p->state = EMBRYO;
@@ -485,14 +485,12 @@ int clone(void *(*func) (void *), void* arg, void* stack) {
 
 	acquire(&ptable.lock);
 
-  // Allocate process.
+  	// Allocate process.
 	if((np = allocproc()) == 0) {
 		release(&ptable.lock);
 		return -1;
 	}
-	/*assign the parents pagemap, dont copyvm*/
-  // Copy process state from p.
-
+  	// Copy process state from p.
 	np->sz = proc->sz;
 	np->parent = proc;
 	np->pgdir = np->parent->pgdir;
@@ -500,16 +498,16 @@ int clone(void *(*func) (void *), void* arg, void* stack) {
   /* project 2 */
 	/*!!!!!!!!have a user stack in the proc struct field that (also minus -4?) that you assign the stack to */
 	np->stack = stack;
-	np->tf->eip = (int)func;
-	np->tf->esp = (int)stack + 4096;
+	np->tf->eip = (uint)func;
+	np->tf->esp = (uint)(stack - 4096);
   /* project 2 */
   // Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
-  /*
-  for(i = 0; i < NOFILE; i++)
-  if(proc->ofile[i])
-  np->ofile[i] = filedup(proc->ofile[i]);
-  */
+	  /*
+	  for(i = 0; i < NOFILE; i++)
+	  if(proc->ofile[i])
+	  np->ofile[i] = filedup(proc->ofile[i]);
+	  */
 	np->cwd = idup(proc->cwd);
 	safestrcpy(np->name, proc->name, sizeof(proc->name));
 
@@ -622,9 +620,9 @@ void texit(void *retval) {
   clone is wait but sharing the memory
   */
 
+		/*
 
 int sem_initialize(void) {
-
 	int i;
 
 	for(i = 0; i < 32; i++) {
@@ -632,19 +630,21 @@ int sem_initialize(void) {
 		semaphore_table[i].value = 0;
 		initlock(&semaphore_table[i].lock, "sem_lock");
 	}
-
 	return 0;
 }
+
+		*/
+
 
 int sem_init(int semId, int n) {
 
 	if(semaphore_table[semId].active != 1) {
 		semaphore_table[semId].active = 1;
 		semaphore_table[semId].value = n;
+		initlock(&semaphore_table[semId].lock, "sem_lock");
 	} else {
 		return -1;
 	}
-
 	return 0;
 }
 
@@ -654,15 +654,48 @@ int sem_destroy(int semId) {
 
 	return 0;
 }
-
+/*
 int sem_wait(int semId) {
 
+
+    acquire(&semaphore_table[semId].lock);
+
+    while(semaphore_table[semId].value == 0) {
+        sleep(&semaphore_table[semId], &semaphore_table[semId].lock);
+    }
+    semaphore_table[semId].value--;
+
+    release(&semaphore_table[semId].lock);
+
+    return 0;
+}
+
+int sem_signal(int semId) {
+
+
+    acquire(&semaphore_table[semId].lock);
+
+    semaphore_table[semId].value++;
+    wakeup(&semaphore_table[semId]);
+
+    release(&semaphore_table[semId].lock);
+
+    return 0;
+}
+*/
+
+
+int sem_wait(int semId) {
 	acquire(&semaphore_table[semId].lock);
 
-	while(semaphore_table[semId].value == 0) {
-		sleep(&semaphore_table[semId], &semaphore_table[semId].lock);
+	if(semaphore_table[semId].value == 1) {
+		semaphore_table[semId].value--;
+	} else {
+		while(semaphore_table[semId].value == 0) {
+			sleep(&semaphore_table[semId], &semaphore_table[semId].lock);
+		}
+		semaphore_table[semId].value--;
 	}
-	semaphore_table[semId].value--;
 
 	release(&semaphore_table[semId].lock);
 	
@@ -670,16 +703,21 @@ int sem_wait(int semId) {
 }
 
 int sem_signal(int semId) {
-
 	acquire(&semaphore_table[semId].lock);
 
-	semaphore_table[semId].value++;
-	wakeup(&semaphore_table[semId]);
+	for(;;) {
+		if(semaphore_table[semId].value == 0) {
+			semaphore_table[semId].value++;
+			wakeup(&semaphore_table[semId]);
+			break;
+		}
+	}
 
 	release(&semaphore_table[semId].lock);
 
 	return 0;
 }
+
 
 /*
 initialize the locks and actives, everything to 0,

@@ -88,19 +88,15 @@ int main(int argc, char **argv)
 
 	int pid[NUM_THREADS];
 	// Start all children
-		printf(1, "hello1\n");
 	for (i=0; i<NUM_THREADS; i++) {
-		printf(1, "hellooo\n");
 		pid[i] = clone(thread, args[i], stacks[i]);
 		printf(1, "main: created thread with pid %d\n", pid[i]);
 	}
-			printf(1, "hello2\n");
 	// Wait for all children
 	for (i=0; i<NUM_THREADS; i++) {
 		void *joinstack;
 		void* retval;
 		int r;
-		printf(1, "hello3\n");
 
 		r = join(pid[i], &joinstack, &retval);
 

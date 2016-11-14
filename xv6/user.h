@@ -24,7 +24,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int halt(void);
-int sem_initialize(void);
+/* int sem_initialize(void); */
 int sem_init(int semId, int n);
 int sem_destroy(int semId);
 int sem_wait(int semId);

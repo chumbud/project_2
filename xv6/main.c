@@ -40,7 +40,7 @@ main(void)
   userinit();      // first user process
   // Finish setting up this processor in mpmain.
   mpmain();
-  sem_initialize();
+  /* sem_initialize(); */
 }
 
 // Other CPUs jump here from entryother.S.

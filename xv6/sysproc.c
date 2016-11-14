@@ -136,7 +136,7 @@ sys_sem_wait(void) {
   if(argint(0, &semId) < 0)
     return -1;
 
-  return sem_destroy(semId);
+  return sem_wait(semId);
 }
 
 int 
@@ -146,7 +146,7 @@ sys_sem_signal(void) {
   if(argint(0, &semId) < 0)
     return -1;
 
-  return sem_destroy(semId);
+  return sem_signal(semId);
 }
 
 int 
@@ -209,10 +209,11 @@ sys_texit(void) {
   return 0;
 }
 
+/*
 int
 sys_sem_initialize(void) {
   sem_initialize();
   return 0;
 }
-
+*/
 /* project 2 */

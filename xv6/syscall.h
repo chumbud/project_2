@@ -30,4 +30,4 @@
 #define SYS_clone 29
 #define SYS_join 30
 #define SYS_texit 31
-#define SYS_sem_initialize 32
+/* #define SYS_sem_initialize 32 */

@@ -107,7 +107,7 @@ extern int sys_sem_signal(void);
 extern int sys_clone(void);
 extern int sys_join(void);
 extern int sys_texit(void);
-extern int sys_sem_initialize(void);
+/* extern int sys_sem_initialize(void); */
 /* project 2 */
 
 static int (*syscalls[])(void) = {
@@ -141,7 +141,7 @@ static int (*syscalls[])(void) = {
 [SYS_clone]   sys_clone,
 [SYS_join]    sys_join,
 [SYS_texit]    sys_texit,
-[SYS_sem_initialize] sys_sem_initialize,
+/*[SYS_sem_initialize] sys_sem_initialize,*/
 /* project 2 */
 };
 
