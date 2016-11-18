@@ -56,11 +56,10 @@ allocproc(void)
 		release(&ptable.lock);
 		return 0;
 
-	found:
-	/*
-		p->stack = 0;
-		p->retval = (void*)0;
-	*/
+	found:/*
+		p->user_stack = (void*)0;
+		p->user_retval = (void*)0;
+		*/
 		p->state = EMBRYO;
 		p->pid = nextpid++;
 		p->isthread = 0;
@@ -490,8 +489,6 @@ int clone(void *(*func) (void *), void* arg, void* stack) {
 	if((np = allocproc()) == 0) {
 		return -1;
 	}
-	acquire(&ptable.lock);
-
 
   	// Copy process state from p.
 	np->sz = proc->sz;
@@ -501,46 +498,23 @@ int clone(void *(*func) (void *), void* arg, void* stack) {
 
   	/* project 2 */
   	np->tf->eax = 0;
+	np->user_stack = (void*)stack;
 
-	np->stack = (uint)stack;
-	np->tf->esp = (uint)stack + 4096;
 	np->tf->eip = (uint)func;
+	np->tf->esp = (uint)stack + 4096 - 4;
+	*((uint*)(np->tf->esp)) = (uint)arg;
+	*((uint*)(np->tf->esp - 4)) = (uint)0xFFFFFFFF;
+	np->tf->esp -= 4;
+
+
 	np->isthread = 1;
-	*((uint*)(np->tf->esp - 4)) = (uint)arg; // push the argument
-	*((uint*)(np->tf->esp - 8)) = 0xFFFFFFFF; // push the return address
-/*
-	cprintf("stack %d\n", (int)stack);
-	cprintf("esp %d\n", np->tf->esp);
-	cprintf("eip %d\n", np->tf->eip);
-*/
-	/*!!!!!!!!have a user stack in the proc struct field that (also minus -4?) that you assign the stack to */
 
-	/*
-	np->tf->esp = (uint)stack - 4096;
-	*((uint*)(np->tf->esp - 4)) = ;
-	np->tf->eip = (uint)func;*/
-	/*
-	*((uint*)(np->tf->esp - 4)) = (uint)proc->tf->eip;
-    *((uint*)(np->tf->esp - 20)) = (uint)arg;
-    *((uint*)(np->tf->esp - 22)) = (uint)func; +2 instead of +4 because 2 bytes for void pointer*/
-
-    /*
-	np->tf->eip = (int)((*func)(arg));
-	np->tf->esp = (int)(stack + 4096);
-	*/
-
-  /* project 2 */
-  // Clear %eax so that fork returns 0 in the child.
-	  /*
-	  for(i = 0; i < NOFILE; i++)
-	  if(proc->ofile[i])
-	  np->ofile[i] = filedup(proc->ofile[i]);
-	  */
 	np->cwd = idup(proc->cwd);
 	safestrcpy(np->name, proc->name, sizeof(proc->name));
 
 	pid = np->pid;
 
+	acquire(&ptable.lock);
 	np->state = RUNNABLE;
 	release(&ptable.lock);
 
@@ -554,16 +528,19 @@ int join(int pid, void **stack, void **retval) {
 	cprintf("In Join\n");
 	acquire(&ptable.lock);
 	for(;;){
+		cprintf("in join for loop\n");
     // Scan through table looking for zombie children.
 		havekids = 0;
 		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-			if(p->parent != proc || p->isthread != 1)
+			cprintf("traversing proc table\n");
+			if(p->parent != proc)
 				continue;
 			havekids = 1;
 			if(p->state == ZOMBIE){
+				cprintf("got child\n");
         // Found one.
 				pid_proc = p->pid;
-				kfree(p->kstack);
+				/*kfree(p->kstack);*/
 				p->kstack = 0;
 				p->pid = 0;
 				p->parent = 0;
@@ -571,30 +548,35 @@ int join(int pid, void **stack, void **retval) {
 				p->killed = 0;
 				p->isthread = 0;
 				p->state = UNUSED;
-				/**retval = (void*)pid_proc;*/
+				*stack = p->user_stack;
+				p->user_stack = (void*)0;
+				*retval = p->user_retval;
 				release(&ptable.lock);
+				cprintf("about to return pid %d\n", pid);
 				return pid_proc;
 			}
 		}
 
     // No point waiting if we don't have any children.
+		cprintf("check if have kids\n");
 		if(!havekids || proc->killed){
 			release(&ptable.lock);
 			return -1;
 		}
 
     	// Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    	cprintf("about to sleep\n");
     	sleep(proc, &ptable.lock);  //DOC: wait-sleep
 	}
-	*(int*)stack = proc->stack;
-	release(&ptable.lock);
+
+	cprintf("returning...");
 	return 0;
 }
 
 void texit(void *retval) {
 	struct proc *p;
 	int fd;
-	cprintf("In texit");
+	cprintf("In texit!\n");
 	if(proc == initproc)
 		panic("init exiting");
 
@@ -618,49 +600,29 @@ void texit(void *retval) {
 
   // Pass abandoned children to init.
 	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+		/*
 		if(p->parent == proc){
 			p->parent = initproc;
 			if(p->state == ZOMBIE)
 				wakeup1(initproc);
 		}
+		*/
 		if(p->isthread == 1) {
+			cprintf("Found a thread.\n");
 			kfree(p->kstack);
 			p->kstack = 0;
 			p->state = UNUSED;
 		}
 	}
-
-	p->retval = retval;
-	release(&ptable.lock);
+	cprintf("Is this working?\n");
+	p->user_retval = retval;
   // Jump into the scheduler, never to return.
 	proc->state = ZOMBIE;
 	sched();
 	panic("zombie exit");
-	/*!!!!!make a field in proc for retval pass through there*/
-	/*!!!!!wait for it to become a zombie, join cant become a proc until the exit, so return reteval after wait in join to become a zombie(?)*/
 }
 
-  /* 
-  join on a particular thread with texit, and dont freevm, check if isthread, 
-  do what wait does but dont clear entire table but clear with focus on the pid, 
-  change proc table to have a return value field for texit to pass to
-  clone is wait but sharing the memory
-  */
 
-		/*
-
-int sem_initialize(void) {
-	int i;
-
-	for(i = 0; i < 32; i++) {
-		semaphore_table[i].active = 0;
-		semaphore_table[i].value = 0;
-		initlock(&semaphore_table[i].lock, "sem_lock");
-	}
-	return 0;
-}
-
-		*/
 
 
 int sem_init(int semId, int n) {
@@ -681,35 +643,6 @@ int sem_destroy(int semId) {
 
 	return 0;
 }
-/*
-int sem_wait(int semId) {
-
-
-    acquire(&semaphore_table[semId].lock);
-
-    while(semaphore_table[semId].value == 0) {
-        sleep(&semaphore_table[semId], &semaphore_table[semId].lock);
-    }
-    semaphore_table[semId].value--;
-
-    release(&semaphore_table[semId].lock);
-
-    return 0;
-}
-
-int sem_signal(int semId) {
-
-
-    acquire(&semaphore_table[semId].lock);
-
-    semaphore_table[semId].value++;
-    wakeup(&semaphore_table[semId]);
-
-    release(&semaphore_table[semId].lock);
-
-    return 0;
-}
-*/
 
 
 int sem_wait(int semId) {
@@ -746,15 +679,3 @@ int sem_signal(int semId) {
 }
 
 
-/*
-initialize the locks and actives, everything to 0,
-proc->chan = chan;
-if proc.chan == chan, then wake
-
-&sem_table[sem_id] can be the chan
-
---
-
-if you add any new fields in proc, then you should add them to alloc proc cos procs are reused
-
-*/
