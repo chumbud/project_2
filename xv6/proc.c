@@ -523,23 +523,22 @@ int clone(void *(*func) (void *), void* arg, void* stack) {
 
 int join(int pid, void **stack, void **retval) {
 	struct proc *p;
-	int havekids, pid_proc;
+	int havekids;
 	/*target the pid*/
 	cprintf("In Join\n");
 	acquire(&ptable.lock);
 	for(;;){
-		cprintf("in join for loop\n");
+		/* cprintf("in join for loop\n"); */
     // Scan through table looking for zombie children.
 		havekids = 0;
+		/* cprintf("traversing proc table\n"); */
 		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-			cprintf("traversing proc table\n");
 			if(p->parent != proc)
 				continue;
 			havekids = 1;
 			if(p->state == ZOMBIE){
-				cprintf("got child\n");
+				/* cprintf("got child\n"); */
         // Found one.
-				pid_proc = p->pid;
 				kfree(p->kstack);
 				p->kstack = 0;
 				p->pid = 0;
@@ -552,24 +551,23 @@ int join(int pid, void **stack, void **retval) {
 				p->user_stack = (void*)0;
 				*retval = p->user_retval;
 				release(&ptable.lock);
-				cprintf("about to return pid %d\n", pid);
-				return pid_proc;
+				/* cprintf("about to return pid %d\n", pid); */
+				return 0;
 			}
 		}
 
     // No point waiting if we don't have any children.
-		cprintf("check if have kids\n");
+		/*cprintf("check if have kids\n");*/
 		if(!havekids || proc->killed){
 			release(&ptable.lock);
 			return -1;
 		}
 
     	// Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    	cprintf("about to sleep\n");
+    	/*cprintf("about to sleep\n");*/
     	sleep(proc, &ptable.lock);  //DOC: wait-sleep
 	}
 
-	cprintf("returning...");
 	return 0;
 }
 
@@ -606,7 +604,6 @@ void texit(void *retval) {
 				wakeup1(initproc);
 		}
 	}
-	cprintf("Is this working?\n");
 	p->user_retval = retval;
   // Jump into the scheduler, never to return.
 	proc->state = ZOMBIE;

@@ -12,7 +12,6 @@ uint g_counter;
 
 void *thread(void *arg)
 {
-	printf(1, "SUCCESS!\n");
 	
 	int i;
 	int counter;
@@ -21,7 +20,6 @@ void *thread(void *arg)
 	printf(1, "thread %d: started...\n", *(int*)arg);
 
 	for (i=0; i<TARGET_COUNT_PER_THREAD; i++) {
-		printf(1, "doing semaphore\n");
 		sem_wait(SEMAPHORE_NUM);
 		
 		counter = g_counter;
@@ -32,7 +30,6 @@ void *thread(void *arg)
 
 		sem_signal(SEMAPHORE_NUM);
 	}
-	printf(1, "texit\n");
 	texit(arg);
 	return 0;
 }
