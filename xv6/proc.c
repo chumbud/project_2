@@ -57,8 +57,10 @@ allocproc(void)
 		return 0;
 
 	found:
-		p->stack = (void*)0;
+	/*
+		p->stack = 0;
 		p->retval = (void*)0;
+	*/
 		p->state = EMBRYO;
 		p->pid = nextpid++;
 		p->isthread = 0;
@@ -480,29 +482,55 @@ procdump(void)
 }
 
 int clone(void *(*func) (void *), void* arg, void* stack) {
+	cprintf("In Clone\n");
 	int pid;
 	struct proc *np;
 
-	acquire(&ptable.lock);
-
   	// Allocate process.
 	if((np = allocproc()) == 0) {
-		release(&ptable.lock);
 		return -1;
 	}
+	acquire(&ptable.lock);
+
+
   	// Copy process state from p.
 	np->sz = proc->sz;
 	np->parent = proc;
 	np->pgdir = np->parent->pgdir;
 	*np->tf = *proc->tf;
-  /* project 2 */
-	/*!!!!!!!!have a user stack in the proc struct field that (also minus -4?) that you assign the stack to */
-	np->stack = stack;
+
+  	/* project 2 */
+  	np->tf->eax = 0;
+
+	np->stack = (uint)stack;
+	np->tf->esp = (uint)stack + 4096;
 	np->tf->eip = (uint)func;
-	np->tf->esp = (uint)(stack - 4096);
+	np->isthread = 1;
+	*((uint*)(np->tf->esp - 4)) = (uint)arg; // push the argument
+	*((uint*)(np->tf->esp - 8)) = 0xFFFFFFFF; // push the return address
+/*
+	cprintf("stack %d\n", (int)stack);
+	cprintf("esp %d\n", np->tf->esp);
+	cprintf("eip %d\n", np->tf->eip);
+*/
+	/*!!!!!!!!have a user stack in the proc struct field that (also minus -4?) that you assign the stack to */
+
+	/*
+	np->tf->esp = (uint)stack - 4096;
+	*((uint*)(np->tf->esp - 4)) = ;
+	np->tf->eip = (uint)func;*/
+	/*
+	*((uint*)(np->tf->esp - 4)) = (uint)proc->tf->eip;
+    *((uint*)(np->tf->esp - 20)) = (uint)arg;
+    *((uint*)(np->tf->esp - 22)) = (uint)func; +2 instead of +4 because 2 bytes for void pointer*/
+
+    /*
+	np->tf->eip = (int)((*func)(arg));
+	np->tf->esp = (int)(stack + 4096);
+	*/
+
   /* project 2 */
   // Clear %eax so that fork returns 0 in the child.
-	np->tf->eax = 0;
 	  /*
 	  for(i = 0; i < NOFILE; i++)
 	  if(proc->ofile[i])
@@ -514,7 +542,6 @@ int clone(void *(*func) (void *), void* arg, void* stack) {
 	pid = np->pid;
 
 	np->state = RUNNABLE;
-	np->isthread = 1;
 	release(&ptable.lock);
 
 	return pid;
@@ -524,12 +551,13 @@ int join(int pid, void **stack, void **retval) {
 	struct proc *p;
 	int havekids, pid_proc;
 	/*target the pid*/
+	cprintf("In Join\n");
 	acquire(&ptable.lock);
 	for(;;){
     // Scan through table looking for zombie children.
 		havekids = 0;
 		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-			if(p->parent != proc)
+			if(p->parent != proc || p->isthread != 1)
 				continue;
 			havekids = 1;
 			if(p->state == ZOMBIE){
@@ -541,33 +569,32 @@ int join(int pid, void **stack, void **retval) {
 				p->parent = 0;
 				p->name[0] = 0;
 				p->killed = 0;
+				p->isthread = 0;
 				p->state = UNUSED;
-				*stack = p->stack;
-				*retval = (void*)pid_proc;
+				/**retval = (void*)pid_proc;*/
 				release(&ptable.lock);
-				return pid;
+				return pid_proc;
 			}
 		}
 
     // No point waiting if we don't have any children.
 		if(!havekids || proc->killed){
 			release(&ptable.lock);
-			*retval = (void*)-1;
 			return -1;
 		}
 
     	// Wait for children to exit.  (See wakeup1 call in proc_exit.)
     	sleep(proc, &ptable.lock);  //DOC: wait-sleep
 	}
+	*(int*)stack = proc->stack;
 	release(&ptable.lock);
-	texit(retval);
 	return 0;
 }
 
 void texit(void *retval) {
 	struct proc *p;
 	int fd;
-
+	cprintf("In texit");
 	if(proc == initproc)
 		panic("init exiting");
 

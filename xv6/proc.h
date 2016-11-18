@@ -67,7 +67,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int isthread;
-  void *stack;
+  int stack;
   void *retval;
 };
 

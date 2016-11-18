@@ -12,6 +12,8 @@ uint g_counter;
 
 void *thread(void *arg)
 {
+	printf(1, "SUCCESS!\n");
+	
 	int i;
 	int counter;
 
@@ -29,7 +31,7 @@ void *thread(void *arg)
 
 		sem_signal(SEMAPHORE_NUM);
 	}
-
+	printf(1, "texit\n");
 	texit(arg);
 	return 0;
 }
@@ -118,7 +120,7 @@ int main(int argc, char **argv)
 	final_counter = g_counter;
 	printf(1, "Final counter is %d, target is %d\n", final_counter, final_target);
 	if (passed == 0){
-		printf(1, "JOIN ERROR, TEST FAILED");
+		printf(1, "JOIN ERROR, TEST FAILED\n");
 	}
 	else if (final_counter == final_target)
 		printf(1, "TEST PASSED!\n");
