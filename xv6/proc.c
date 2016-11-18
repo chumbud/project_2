@@ -540,7 +540,7 @@ int join(int pid, void **stack, void **retval) {
 				cprintf("got child\n");
         // Found one.
 				pid_proc = p->pid;
-				/*kfree(p->kstack);*/
+				kfree(p->kstack);
 				p->kstack = 0;
 				p->pid = 0;
 				p->parent = 0;
@@ -600,18 +600,10 @@ void texit(void *retval) {
 
   // Pass abandoned children to init.
 	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-		/*
 		if(p->parent == proc){
 			p->parent = initproc;
 			if(p->state == ZOMBIE)
 				wakeup1(initproc);
-		}
-		*/
-		if(p->isthread == 1) {
-			cprintf("Found a thread.\n");
-			kfree(p->kstack);
-			p->kstack = 0;
-			p->state = UNUSED;
 		}
 	}
 	cprintf("Is this working?\n");
