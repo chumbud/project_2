@@ -533,25 +533,30 @@ int join(int pid, void **stack, void **retval) {
 		havekids = 0;
 		/* cprintf("traversing proc table\n"); */
 		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-			if(p->parent != proc)
+			cprintf("current pid num: %d, looking for: %d \n", p->pid, pid);
+			if(p->pid != pid)
 				continue;
 			havekids = 1;
 			break;
 		}
 			if(p->state == ZOMBIE){
 				/* cprintf("got child\n"); */
-        // Found one.
+        		// Found one.
 				kfree(p->kstack);
 				p->kstack = 0;
+				cprintf("#%d join return value: %d\n", p->pid, *(int*)retval);
+				cprintf("join: address of retval: %p\n", retval);
+				cprintf("join: address of user_retval: %p\n", retval);
+				cprintf("join: value in retval: %d\n", *(int*)p->user_retval);
+				*stack = p->user_stack;
+    			*retval = p->user_retval;
 				p->pid = 0;
 				p->parent = 0;
 				p->name[0] = 0;
 				p->killed = 0;
 				p->isthread = 0;
 				p->state = UNUSED;
-				*stack = p->user_stack;
-				p->user_stack = (void*)0;
-				*retval = p->user_retval;
+				/*p->user_stack = (void*)0;*/
 				release(&ptable.lock);
 				/* cprintf("about to return pid %d\n", pid); */
 				return 0;
@@ -568,6 +573,7 @@ int join(int pid, void **stack, void **retval) {
     	// Wait for children to exit.  (See wakeup1 call in proc_exit.)
     	/*cprintf("about to sleep\n");*/
     	sleep(proc, &ptable.lock);  //DOC: wait-sleep
+    	
 	}
 
 	return 0;
@@ -606,8 +612,13 @@ void texit(void *retval) {
 				wakeup1(initproc);
 		}
 	}
+	cprintf("#%d texit return value: %d\n", p->pid, *(int*)retval);
+	cprintf("address of retval in texit: %p\n", retval);
 	p->user_retval = retval;
-  // Jump into the scheduler, never to return.
+
+	cprintf("address of retval in texit after p->user_retval: %p\n", retval);
+	cprintf("#%d texit return value in p->user_retval: %d\n", p->pid, *(int*)p->user_retval);
+  	// Jump into the scheduler, never to return.
 	proc->state = ZOMBIE;
 	sched();
 	panic("zombie exit");
