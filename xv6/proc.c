@@ -611,13 +611,10 @@ void texit(void *retval) {
 			if(p->state == ZOMBIE)
 				wakeup1(initproc);
 		}
+		if(p->isthread == 1)
+			proc->user_retval = retval;
 	}
-	cprintf("#%d texit return value: %d\n", p->pid, *(int*)retval);
-	cprintf("address of retval in texit: %p\n", retval);
-	p->user_retval = retval;
-
-	cprintf("address of retval in texit after p->user_retval: %p\n", retval);
-	cprintf("#%d texit return value in p->user_retval: %d\n", p->pid, *(int*)p->user_retval);
+	
   	// Jump into the scheduler, never to return.
 	proc->state = ZOMBIE;
 	sched();

@@ -101,9 +101,11 @@ int main(int argc, char **argv)
 		r = join(pid[i], &joinstack, &retval);
 
 		if (r<0){
+			printf(1, "r: %d \n", r);
 			passed = 0;
 		}
 		if(*(int*)retval != i){
+			printf(1, "retval: %d\n", retval);
 			passed = 0;
 		}
 		for (j=0; j<NUM_THREADS; j++) {
