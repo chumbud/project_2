@@ -536,6 +536,8 @@ int join(int pid, void **stack, void **retval) {
 			if(p->parent != proc)
 				continue;
 			havekids = 1;
+			break;
+		}
 			if(p->state == ZOMBIE){
 				/* cprintf("got child\n"); */
         // Found one.
@@ -554,7 +556,7 @@ int join(int pid, void **stack, void **retval) {
 				/* cprintf("about to return pid %d\n", pid); */
 				return 0;
 			}
-		}
+	
 
     // No point waiting if we don't have any children.
 		/*cprintf("check if have kids\n");*/
